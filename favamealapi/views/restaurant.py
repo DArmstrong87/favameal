@@ -1,11 +1,14 @@
 """View module for handling requests about restaurants"""
+from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.db.models.fields import BooleanField
 from django.http import HttpResponseServerError
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
-from favamealapi.models import Restaurant
-from favamealapi.models.favoriterestaurant import FavoriteRestaurant
+from favamealapi.models import Restaurant, FavoriteMeal, FavoriteRestaurant
+from rest_framework.decorators import action
+
 
 
 class RestaurantSerializer(serializers.ModelSerializer):
@@ -13,7 +16,8 @@ class RestaurantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
-        fields = ('id', 'name', 'address', 'favorite',)
+        fields = ('id', 'name', 'address', 'favorite')
+
 
 class FaveSerializer(serializers.ModelSerializer):
     """JSON serializer for favorites"""
@@ -53,12 +57,19 @@ class RestaurantView(ViewSet):
         """
         try:
             restaurant = Restaurant.objects.get(pk=pk)
+            user = request.auth.user
 
             # TODO: Add the correct value to the `favorite` property of the requested restaurant
 
             serializer = RestaurantSerializer(
                 restaurant, context={'request': request})
-            return Response(serializer.data)
+            data = serializer.data
+            if user.id in data["favorite"]:
+                data["favorite"]=True
+            else:
+                data["favorite"]=False
+            
+            return Response(data)
         except Exception as ex:
             return HttpResponseServerError(ex)
 
@@ -68,14 +79,36 @@ class RestaurantView(ViewSet):
         Returns:
             Response -- JSON serialized list of restaurants
         """
+        user = request.auth.user
         restaurants = Restaurant.objects.all()
+
 
         # TODO: Add the correct value to the `favorite` property of each restaurant
 
-
-        serializer = RestaurantSerializer(restaurants, many=True, context={'request': request})
+        serializer = RestaurantSerializer(
+            restaurants, many=True, context={'request': request})
+        
+        for restaurant in serializer.data:
+            if user.id in restaurant["favorite"]:
+                restaurant["favorite"]=True
+            else:
+                restaurant["favorite"]=False
 
         return Response(serializer.data)
 
     # TODO: Write a custom action named `star` that will allow a client to
     # send a POST and a DELETE request to /restaurant/2/star
+    @action(methods=['post', 'delete'], detail=True)
+    def star(self, request, pk=None):
+        user = request.auth.user
+        restaurant = Restaurant.objects.get(pk=pk)
+
+        if request.method == "POST":
+            try:
+                restaurant.favorite.add(user)
+                return Response({f"You added {restaurant.name} as a favorite!"}, status=status.HTTP_201_CREATED)
+            except Exception as ex:
+                return Response({'message': ex.args[0]})
+        elif request.method == "DELETE":
+                restaurant.favorite.remove(user)
+                return Response({f"You removed {restaurant.name} as a favorite."}, status=status.HTTP_204_NO_CONTENT)

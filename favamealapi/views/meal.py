@@ -16,7 +16,8 @@ class MealSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Meal
-        fields = ('id', 'name', 'restaurant', 'user_rating', 'avg_rating')
+        fields = ('id', 'name', 'restaurant')
+        # 'user_rating', 'avg_rating'
 
 
 class MealView(ViewSet):
@@ -57,7 +58,7 @@ class MealView(ViewSet):
             # TODO: Assign a value to the `is_favorite` property of requested meal
 
 
-            serializer = RestaurantSerializer(
+            serializer = MealSerializer(
                 meal, context={'request': request})
             return Response(serializer.data)
         except Exception as ex:
@@ -81,6 +82,24 @@ class MealView(ViewSet):
             meals, many=True, context={'request': request})
 
         return Response(serializer.data)
+    
+    def destroy(self, request, pk):
+        """Handle DELETE requests for a single meal
+
+        Returns:
+            Response -- 200, 404, or 500 status code
+        """
+        try:
+            meal = Meal.objects.get(pk=pk)
+            meal.delete()
+
+            return Response({}, status=status.HTTP_204_NO_CONTENT)
+
+        except meal.DoesNotExist as ex:
+            return Response({'message': ex.args[0]}, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as ex:
+            return Response({'message': ex.args[0]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # TODO: Add a custom action named `rate` that will allow a client to send a
     #  POST and a PUT request to /meals/3/rate with a body of..

@@ -1,4 +1,7 @@
 from django.db import models
+"""
+Docstring
+"""
 
 
 class Meal(models.Model):
